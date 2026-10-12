@@ -1,1 +1,62 @@
+name: Build RE4 Android 32-bit (armeabi-v7a)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-android-32bit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Descargar repositorio y submódulos
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 2. Instalar herramientas base del sistema
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-pip build-essential ninja-build
+
+      - name: 3. Configurar Java (Requerido para Android SDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 4. Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 5. Instalar NDK r25b y CMake específicos
+        run: |
+          echo "Instalando NDK y CMake para 32-bits..."
+          sdkmanager --install "ndk;25.2.9519653" "cmake;3.22.1"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+
+      - name: 6. Configurar CMake para compilación cruzada ARM 32-bit
+        run: |
+          mkdir -p build_android_32
+          cd build_android_32
+          cmake \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/25.2.9519653/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI="armeabi-v7a" \
+            -DANDROID_PLATFORM=android-21 \
+            -DCMAKE_BUILD_TYPE=Release \
+            ..
+
+      - name: 7. Compilar código fuente nativo
+        run: |
+          cd build_android_32
+          cmake --build . --config Release -j$(nproc)
+
+      - name: 8. Guardar binarios compilados (.so)
+        uses: actions/upload-artifact@v4
+        with:
+          name: re4-android-32bit-libs
+          path: |
+            build_android_32/**/*.so
+            build_android_32/**/*.a
 
